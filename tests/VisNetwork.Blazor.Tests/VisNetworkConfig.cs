@@ -11,6 +11,12 @@ public class VisNetworkConfig
         services.AddSingleton<IJSModule, JSModule>();
     }
 
+    public static void AddVisNetworkScoped(TestServiceProvider services)
+    {
+        services.AddScoped<IVersionProvider, VersionProvider>();
+        services.AddScoped<IJSModule, JSModule>();
+    }
+
     internal class VersionProvider : IVersionProvider
     {
         public string Version => string.Empty;
