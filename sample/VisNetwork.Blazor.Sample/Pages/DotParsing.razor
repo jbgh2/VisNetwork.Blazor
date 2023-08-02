@@ -1,11 +1,13 @@
 @page "/dot-parsing"
 
+@using System.Text.Json
 @using VisNetwork.Blazor.Models
+@using VisNetwork.Blazor.Serializers
 
 <h1>DOT parsing</h1>
 
 <div>
-    <Network @ref="network" Id="my-id" Data="@data" class="vis-network-container" SetupCompletedCallback="NetworkReady" />
+    <Network @ref="network" Id="my-id" Data="@data" Options="@( (_) => options )" class="vis-network-container" SetupCompletedCallback="NetworkReady" />
 </div>
 <div >
     <textarea rows="10" cols="40" class="form-control textbox-parameters" @bind="dotString"/>
@@ -19,26 +21,52 @@
 
     private NetworkData data;
 
+    private NetworkOptions options;
+
     private string errorMsg = "";
 
-    private string dotString = @"digraph {
-                            node [shape=circle fontsize=16]
-                            edge [length=100, color=gray, fontcolor=black]
-
-                            A -> A[label=""0.5""];
-                            B -> B[label=""1.2""] -> C[label=""0.7""] -- A;
-                            B -> D;
-                            D -> {B; C}
-                            D -> E[label=""0.2""];
-                            F -> F;
-                            A [
-                                fontcolor=white,
-                                color=red,
-                            ]
-                        }"; 
+    private string dotString = ""; 
 
     protected override void OnInitialized()
     {
+        options = new NetworkOptions() {
+            Edges = new EdgeOption() {
+                Arrows = new Arrows() {
+                    To = new ArrowsOptions() {
+                        Enabled = true
+                    }
+                },
+                Smooth = new EdgeSmoothOptions() {
+                    Enabled = true,
+                    Type = "dynamic"
+                }
+            },
+            Layout = new LayoutOptions() {
+                Hierarchical = new HierarchicalOptions() {
+                    Direction = "UD", 
+                    BlockShifting = true,
+                    EdgeMinimization = true,
+                    ParentCentralization = true,
+                    SortMethod = "hubSize",
+                    NodeSpacing = 150,
+                    TreeSpacing = 100,
+                    LevelSeparation = 80,
+                    Enabled = true
+                },
+                ImprovedLayout = true
+            },
+            Physics = new PhysicsOptions() {
+                Enabled = false,
+                Stabilization = new StabilizationOption() {
+                    Enabled = true,
+                    Fit = true,
+                    Iterations = 1000,
+                    OnlyDynamicEdges = false,
+                    UpdateInterval = 50
+                }
+            }
+        };
+
         var nodes = new List<Node>();
         var edges = new List<Edge>();
 
@@ -52,7 +80,24 @@
     private async Task NetworkReady()
     {
         Console.WriteLine($"Parsed network: Before: {dotString}");
-        var parsedNetwork = await network.ParseDOTNetwork(dotString);
+        //var parsedNetwork = await network.ParseDOTNetwork(dotString);
+
+        if(string.IsNullOrWhiteSpace(dotString))
+            return;
+
+        var jsonDeserializeOptions = new JsonSerializerOptions 
+        { 
+            PropertyNameCaseInsensitive = true,
+            Converters = 
+            {
+                ValueOrObjectConverterFactory.StringOrObjectConverter<Arrows, ArrowsInner>(),
+                ValueOrObjectConverterFactory.StringOrObjectConverter<Font, FontInner>(),
+                ValueOrObjectConverterFactory.StringOrObjectConverter<NodeColorType, NodeColorTypeInner>(),
+                ValueOrObjectConverterFactory.NumberOrObjectConverter<NodeMarginOption, NodeMarginOptionInner>()
+            }
+        };
+
+        var parsedNetwork = JsonSerializer.Deserialize<NetworkData>(dotString, jsonDeserializeOptions);
 
         await network.SetData(parsedNetwork);
         Console.WriteLine($"Parsed network: After: {parsedNetwork}");
